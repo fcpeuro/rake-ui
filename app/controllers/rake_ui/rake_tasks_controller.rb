@@ -44,12 +44,51 @@ module RakeUi
     def execute
       @rake_task = RakeUi::RakeTask.find_by_id(params[:id])
 
-      rake_task_log = @rake_task.call(args: params[:args], environment: params[:environment])
+      # Handle individual argument parameters (arg_0, arg_1, etc.) or fall back to comma-separated args
+      args = build_args_from_params
+
+      # Get current user if configured
+      current_user_identifier = get_current_user_identifier
+
+      rake_task_log = @rake_task.call(
+        args: args,
+        environment: params[:environment],
+        executed_by: current_user_identifier
+      )
 
       redirect_to rake_task_log_path rake_task_log.id
     end
 
     private
+
+    def get_current_user_identifier
+      unless RakeUi.current_user_method.respond_to?(:call)
+        Rails.logger.debug("RakeUi: current_user_method not configured")
+        return nil
+      end
+
+      result = RakeUi.current_user_method.call(self)
+      Rails.logger.debug("RakeUi: current_user_identifier = #{result.inspect}")
+      result
+    rescue => e
+      Rails.logger.warn("RakeUi: Failed to get current user - #{e.message}")
+      Rails.logger.warn("RakeUi: Backtrace: #{e.backtrace.first(5).join("\n")}")
+      nil
+    end
+
+    def build_args_from_params
+      # If individual arg parameters exist (arg_0, arg_1, etc.), build from them
+      individual_args = []
+      index = 0
+      
+      while params.key?("arg_#{index}")
+        individual_args << params["arg_#{index}"]
+        index += 1
+      end
+
+      # Return individual args joined by comma if they exist, otherwise return the args param
+      individual_args.any? ? individual_args.join(",") : params[:args]
+    end
 
     def rake_task_as_json(task)
       RAKE_TASK_ATTRS.each_with_object({}) do |param, obj|

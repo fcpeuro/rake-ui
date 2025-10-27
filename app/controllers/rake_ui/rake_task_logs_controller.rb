@@ -9,10 +9,11 @@ module RakeUi
       :rake_command,
       :rake_definition_file,
       :log_file_name,
-      :log_file_full_path].freeze
+      :log_file_full_path,
+      :executed_by].freeze
 
     def index
-      @rake_task_logs = RakeUi::RakeTaskLog.all.sort_by(&:id)
+      @rake_task_logs = RakeUi::RakeTaskLog.all.sort_by(&:id).reverse
 
       respond_to do |format|
         format.html

@@ -2,6 +2,8 @@
 
 module RakeUi
   class RakeTask
+    @@tasks_loaded = false
+
     def self.to_safe_identifier(id)
       CGI.escape(id)
     end
@@ -16,8 +18,20 @@ module RakeUi
         Rake::TaskManager.record_task_metadata = true
       end
 
-      Rails.application.load_tasks
+      # Only load tasks once to prevent duplicate descriptions
+      unless @@tasks_loaded
+        Rails.application.load_tasks
+        @@tasks_loaded = true
+      end
+
       Rake::Task.tasks
+    end
+
+    def self.reload
+      # Reset the flag to allow reloading tasks (useful in development)
+      @@tasks_loaded = false
+      Rake::Task.clear
+      load
     end
 
     def self.all
@@ -42,10 +56,26 @@ module RakeUi
     end
 
     attr_reader :task
-    delegate :name, :actions, :name_with_args, :arg_description, :full_comment, :locations, :sources, to: :task
+    delegate :name, :actions, :name_with_args, :arg_description, :arg_names, :full_comment, :locations, :sources, to: :task
 
     def initialize(task)
       @task = task
+    end
+
+    # Returns true if the task has defined arguments
+    def has_arguments?
+      arg_names && arg_names.any?
+    end
+
+    # Returns an array of argument names as strings
+    def argument_names
+      return [] unless has_arguments?
+      arg_names.map(&:to_s)
+    end
+
+    # Returns the count of arguments
+    def argument_count
+      argument_names.length
     end
 
     def id
@@ -80,7 +110,7 @@ module RakeUi
       # end
     end
 
-    def call(args: nil, environment: nil)
+    def call(args: nil, environment: nil, executed_by: nil)
       rake_command = build_rake_command(args: args, environment: environment)
 
       rake_task_log = RakeUi::RakeTaskLog.build_new_for_command(
@@ -89,7 +119,8 @@ module RakeUi
         environment: environment,
         rake_command: rake_command,
         rake_definition_file: rake_definition_file,
-        raker_id: id
+        raker_id: id,
+        executed_by: executed_by
       )
 
       puts "[rake_ui] [rake_task] [forked] #{rake_task_log.rake_command_with_logging}"
