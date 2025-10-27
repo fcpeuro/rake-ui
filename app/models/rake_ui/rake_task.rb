@@ -62,18 +62,15 @@ module RakeUi
       @task = task
     end
 
-    # Returns true if the task has defined arguments
     def has_arguments?
       arg_names && arg_names.any?
     end
 
-    # Returns an array of argument names as strings
     def argument_names
       return [] unless has_arguments?
       arg_names.map(&:to_s)
     end
 
-    # Returns the count of arguments
     def argument_count
       argument_names.length
     end
@@ -82,7 +79,6 @@ module RakeUi
       RakeUi::RakeTask.to_safe_identifier(name)
     end
 
-    # actions will be something like #<Proc:0x000055a2737fe778@/some/rails/app/lib/tasks/auto_annotate_models.rake:4>
     def rake_definition_file
       definition = actions.first || ""
 
@@ -99,15 +95,8 @@ module RakeUi
       internal_task?
     end
 
-    # thinking this is the sanest way to discern application vs gem defined tasks (like rails, devise etc)
     def internal_task?
       actions.any? { |a| !a.to_s.include? "/ruby/gems" }
-
-      # this was my initial thought here, leaving for posterity in case we need to or the definition of custom
-      # from initial investigation the actions seemed like the most consistent as locations is sometimes empty
-      # locations.any? do |location|
-      #   !location.match(/\/bundle\/gems/)
-      # end
     end
 
     def call(args: nil, environment: nil, executed_by: nil)
@@ -134,10 +123,6 @@ module RakeUi
       rake_task_log
     end
 
-    # returns an invokable rake command
-    # FOO=bar rake create_something[1,2,3]
-    # rake create_something[1,2,3]
-    # rake create_something
     def build_rake_command(args: nil, environment: nil)
       command = ""
 

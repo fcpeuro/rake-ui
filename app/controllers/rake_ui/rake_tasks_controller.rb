@@ -44,10 +44,7 @@ module RakeUi
     def execute
       @rake_task = RakeUi::RakeTask.find_by_id(params[:id])
 
-      # Handle individual argument parameters (arg_0, arg_1, etc.) or fall back to comma-separated args
       args = build_args_from_params
-
-      # Get current user if configured
       current_user_identifier = get_current_user_identifier
 
       rake_task_log = @rake_task.call(
@@ -77,7 +74,6 @@ module RakeUi
     end
 
     def build_args_from_params
-      # If individual arg parameters exist (arg_0, arg_1, etc.), build from them
       individual_args = []
       index = 0
       
@@ -86,7 +82,6 @@ module RakeUi
         index += 1
       end
 
-      # Return individual args joined by comma if they exist, otherwise return the args param
       individual_args.any? ? individual_args.join(",") : params[:args]
     end
 
