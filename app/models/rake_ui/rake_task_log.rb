@@ -18,6 +18,21 @@ module RakeUi
       FileUtils.rm_rf(Dir.glob(REPOSITORY_DIR.to_s + "/*"))
     end
 
+    def self.cleanup_old_logs
+      create_tmp_file_dir
+
+      all_files = Dir.children(REPOSITORY_DIR).sort.reverse
+      files_to_delete = all_files.drop(200)
+
+      files_to_delete.each do |file|
+        File.delete(File.join(REPOSITORY_DIR, file))
+      rescue => e
+        Rails.logger.warn("RakeUi: Failed to delete old log #{file} - #{e.message}")
+      end
+
+      files_to_delete.size
+    end
+
     def self.build_from_file(log_file_name)
       log_file_name.split(FILE_DELIMITER)
 
@@ -28,7 +43,7 @@ module RakeUi
       )
     end
 
-    def self.build_new_for_command(name:, rake_definition_file:, rake_command:, raker_id:, args: nil, environment: nil)
+    def self.build_new_for_command(name:, rake_definition_file:, rake_command:, raker_id:, args: nil, environment: nil, executed_by: nil)
       create_tmp_file_dir
 
       date = Time.now.strftime(ID_DATE_FORMAT)
@@ -46,6 +61,7 @@ module RakeUi
         f.puts "rake_definition_file#{FILE_ITEM_SEPARATOR}#{rake_definition_file}"
         f.puts "log_file_name#{FILE_ITEM_SEPARATOR}#{log_file_name}"
         f.puts "log_file_full_path#{FILE_ITEM_SEPARATOR}#{log_file_full_path}"
+        f.puts "executed_by#{FILE_ITEM_SEPARATOR}#{executed_by}"
 
         f.puts TASK_HEADER_OUTPUT_DELIMITER.to_s
         f.puts " INVOKED RAKE TASK OUTPUT BELOW"
@@ -59,17 +75,18 @@ module RakeUi
         rake_command: rake_command,
         rake_definition_file: rake_definition_file,
         log_file_name: log_file_name,
-        log_file_full_path: log_file_full_path)
+        log_file_full_path: log_file_full_path,
+        executed_by: executed_by)
     end
 
     def self.all
       create_tmp_file_dir
 
-      Dir.entries(REPOSITORY_DIR).reject { |file|
-        file == "." || file == ".."
-      }.map do |log|
-        RakeUi::RakeTaskLog.build_from_file(log)
-      end
+      Dir.children(REPOSITORY_DIR)
+        .sort!
+        .reverse!
+        .first(200)
+        .map { |log| RakeUi::RakeTaskLog.build_from_file(log) }
     end
 
     def self.find_by_id(id)
@@ -116,6 +133,10 @@ module RakeUi
       super || parsed_file_contents[:log_file_full_path]
     end
 
+    def executed_by
+      super || parsed_file_contents[:executed_by]
+    end
+
     def rake_command_with_logging
       "#{rake_command} 2>&1 >> #{log_file_full_path}"
     end
@@ -134,7 +155,6 @@ module RakeUi
 
     private
 
-    # converts standard formatted file id into an object
     def parsed_log_file_name
       @parsed_log_file_name ||= {}.tap do |parsed|
         date, name = id.split(FILE_DELIMITER, 2)
@@ -143,18 +163,11 @@ module RakeUi
       end
     end
 
-    # converts our persisted rake logs files into an object
-    # name: foo
-    # id: baz
-    #
-    # into
-    #
-    # { name: 'foo', id: 'baz' }
     def parsed_file_contents
       return @parsed_file_contents if defined? @parsed_file_contents
 
       @parsed_file_contents = {}.tap do |parsed|
-        File.foreach(log_file_full_path).first(9).each do |line|
+        File.foreach(log_file_full_path).first(10).each do |line|
           name, value = line.split(FILE_ITEM_SEPARATOR, 2)
           next unless name
 
