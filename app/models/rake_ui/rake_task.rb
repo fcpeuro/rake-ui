@@ -26,14 +26,25 @@ module RakeUi
         @@tasks_loaded = true
       end
 
-      if RakeUi.configuration.whitelisted_prefixes.empty?
-        Rake::Task.tasks
-      else
-        Rake::Task.tasks.select do |task|
-          RakeUi.configuration.whitelisted_prefixes.any? do |prefix|
-            task.name.start_with?(prefix)
-          end
-        end
+      whitelisted(Rake::Task.tasks)
+    end
+
+    # A task is visible when its name starts with one of whitelisted_prefixes
+    # or appears verbatim in whitelisted_tasks. With neither configured every
+    # task is visible, which is the historical behavior.
+    #
+    # The two are not interchangeable: a prefix always carries the subtasks
+    # beneath it, so allowing "db:migrate" by prefix also allows
+    # "db:migrate:reset". whitelisted_tasks allows a name and nothing else.
+    def self.whitelisted(tasks)
+      prefixes = Array(RakeUi.configuration.whitelisted_prefixes)
+      names = Array(RakeUi.configuration.whitelisted_tasks)
+
+      return tasks if prefixes.empty? && names.empty?
+
+      tasks.select do |task|
+        names.include?(task.name) ||
+          prefixes.any? { |prefix| task.name.start_with?(prefix) }
       end
     end
 
