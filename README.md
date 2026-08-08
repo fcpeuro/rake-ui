@@ -102,6 +102,40 @@ The user identifier will be:
 
 If not configured, the "Executed By" field will show "Unknown".
 
+#### Limiting Which Tasks Are Available
+
+By default every rake task in the application is listed and can be run. Two
+options narrow that down, and a task is available when it matches either. Tasks
+that do not match are hidden from the index and cannot be executed.
+
+`whitelisted_tasks` matches names exactly:
+
+```rb
+# config/initializers/rake_ui.rb
+RakeUi.configuration do |config|
+  config.whitelisted_tasks = ['db:migrate', 'db:migrate:status']
+end
+```
+
+`whitelisted_prefixes` matches the beginning of a name:
+
+```rb
+RakeUi.configuration do |config|
+  config.whitelisted_prefixes = ['reports:']
+end
+```
+
+Prefixes are convenient for opening up a whole namespace, but they cannot
+separate a task from the subtasks beneath it. `whitelisted_prefixes =
+['db:migrate']` also allows `db:migrate:up`, `db:migrate:down`,
+`db:migrate:redo` and `db:migrate:reset` — the last of which drops and recreates
+the database. Reach for `whitelisted_tasks` whenever a task shares its name with
+a namespace, and check what a prefix resolves to before shipping it:
+
+```rb
+RakeUi::RakeTask.load.map(&:name)
+```
+
 #### Securing RakeUi
 
 This tool is built to enable developer productivity in development.  It exposes rake tasks through a UI.

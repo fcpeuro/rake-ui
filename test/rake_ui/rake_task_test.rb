@@ -153,6 +153,63 @@ class RakeTaskTest < ActiveSupport::TestCase
     assert_equal 0, task.argument_count
   end
 
+  test "every task is visible when nothing is whitelisted" do
+    names = with_whitelist { RakeUi::RakeTask.load.map(&:name) }
+
+    assert_includes names, "migrate_like"
+    assert_includes names, "migrate_like:destroy_everything"
+    assert_includes names, "regular"
+  end
+
+  test "whitelisted_prefixes also allows the subtasks beneath the prefix" do
+    names = with_whitelist(prefixes: ["migrate_like"]) do
+      RakeUi::RakeTask.load.map(&:name)
+    end
+
+    assert_equal ["migrate_like", "migrate_like:destroy_everything"], names.sort
+  end
+
+  test "whitelisted_tasks allows an exact name and nothing beneath it" do
+    names = with_whitelist(tasks: ["migrate_like"]) do
+      RakeUi::RakeTask.load.map(&:name)
+    end
+
+    assert_equal ["migrate_like"], names
+  end
+
+  test "whitelisted_tasks does not allow a task it only prefixes" do
+    task = with_whitelist(tasks: ["migrate_like"]) do
+      RakeUi::RakeTask.find_by_id(
+        RakeUi::RakeTask.to_safe_identifier("migrate_like:destroy_everything")
+      )
+    end
+
+    assert_nil task
+  end
+
+  test "whitelisted_tasks and whitelisted_prefixes are unioned" do
+    names = with_whitelist(tasks: ["migrate_like"], prefixes: ["nested:"]) do
+      RakeUi::RakeTask.load.map(&:name)
+    end
+
+    assert_equal ["migrate_like", "nested:the_nested_task"], names.sort
+  end
+
+  # Whitelist config is global, so it has to be put back or it leaks into every
+  # test that follows.
+  def with_whitelist(prefixes: [], tasks: [])
+    previous_prefixes = RakeUi.whitelisted_prefixes
+    previous_tasks = RakeUi.whitelisted_tasks
+
+    RakeUi.whitelisted_prefixes = prefixes
+    RakeUi.whitelisted_tasks = tasks
+
+    yield
+  ensure
+    RakeUi.whitelisted_prefixes = previous_prefixes
+    RakeUi.whitelisted_tasks = previous_tasks
+  end
+
   def get_double_nested_task
     id = RakeUi::RakeTask.to_safe_identifier("double_nested:inside_double_nested:double_nested_task")
 
